@@ -23,6 +23,8 @@ import ab.demo.other.Shot;
 import ab.planner.TrajectoryPlanner;
 import ab.utils.StateUtil;
 import ab.vision.ABObject;
+import ab.vision.ABShape;
+import ab.vision.ABType;
 import ab.vision.GameStateExtractor.GameState;
 import ab.vision.Vision;
 
@@ -153,7 +155,7 @@ public class NaiveAgent implements Runnable {
 				{
 					// random pick up a pig
 					ABObject pig = pigs.get(randomGenerator.nextInt(pigs.size()));
-					
+
 					Point _tpt = pig.getCenter();// if the target is very close to before, randomly choose a
 					// point near it
 					if (prevTarget != null && distance(prevTarget, _tpt) < 10) {
@@ -187,6 +189,7 @@ public class NaiveAgent implements Runnable {
 					else
 						if(pts.isEmpty())
 						{
+
 							System.out.println("No release point found for the target");
 							System.out.println("Try a shot with 45 degree");
 							releasePoint = tp.findReleasePoint(sling, Math.PI/4);
@@ -270,6 +273,34 @@ public class NaiveAgent implements Runnable {
 		}
 		return state;
 	}
+
+    public class blkStr extends ABObject {
+        public int id;
+        public ABType type;
+        public ABShape shape;
+
+        public blkStr(int id, ABShape shape, ABType type) {
+            this.id = id;
+            this.shape = shape;
+            this.type = type;
+        }
+    }
+
+    public List<blkStr> blockStr() {
+        BufferedImage screenshot = ActionRobot.doScreenShot();
+
+        Vision vision = new Vision(screenshot);
+
+        List<ABObject> block = vision.findBlocksRealShape();
+        List<blkStr> blk = new ArrayList<blkStr>();
+
+        for(ABObject i : block) {
+            blkStr b = new blkStr(i.id, i.shape, i.type);
+            blk.add(b);
+        }
+
+        return blk;
+    }
 
 	public static void main(String args[]) {
 
