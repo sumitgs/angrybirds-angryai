@@ -1,4 +1,3 @@
-
 /*****************************************************************************
  ** ANGRYBIRDS AI AGENT FRAMEWORK
  ** Copyright (c) 2014, XiaoYu (Gary) Ge, Stephen Gould, Jochen Renz
@@ -13,21 +12,17 @@ package ab.demo;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 import ab.demo.other.ActionRobot;
 import ab.demo.other.Shot;
 import ab.planner.TrajectoryPlanner;
+import ab.utils.ABUtil;
 import ab.utils.StateUtil;
 import ab.vision.ABObject;
 import ab.vision.GameStateExtractor.GameState;
 import ab.vision.Vision;
-import ab.vision.ABType;
-import ab.vision.ABShape;
+
 public class NaiveAgent implements Runnable {
 
     private ActionRobot aRobot;
@@ -139,61 +134,95 @@ public class NaiveAgent implements Runnable {
             vision = new Vision(screenshot);
             sling = vision.findSlingshotMBR();
         }
+
+
+
         // get all the pigs
-
         List<ABObject> pigs = vision.findPigsMBR();
-        for(int i=0;i<pigs.size(); i++){
-            System.out.println(pigs.get(i).x+","+ pigs.get(i).y);
-        }
-        List<Integer> dely = new ArrayList<Integer>();
-        int i=0;
-
-        for(int j=1; j < pigs.size() ; j++){
-            dely.add(pigs.get(j).y - pigs.get(i).y);
-
-
-            System.out.println(dely.get(i));
-            i++;
-        }
-        i=0;
-        for(int j=0; j<pigs.size() ;j++ ){
-
-        }
 
         GameState state = aRobot.getState();
-
+        boolean reachability = true;//edited
         // if there is a sling, then play, otherwise just skip.
         if (sling != null) {
 
             if (!pigs.isEmpty()) {
+                //edited
+                for(ABObject o: pigs){
+                    Point releasePoint = null;
+                    Shot shot = new Shot();
+                    int dx, dy;
+                    Point _tpt = o.getCenter();
+                    ArrayList<Point> pts = tp.estimateLaunchPoint(sling, _tpt);
+                    if(!pts.isEmpty()){
+                        releasePoint = pts.get(0);
+                        Point refPoint = tp.getReferencePoint(sling);
+                        dx = (int)releasePoint.getX() - refPoint.x;
+                        dy = (int)releasePoint.getY() - refPoint.y;
+                        shot = new Shot(refPoint.x, refPoint.y, dx, dy, 0, 0);
+                        if(!ABUtil.isReachable(vision, _tpt, shot)){
+                            reachability = false;
+                            break;
+                        }
+                        if(pts.size()>1){
+                            releasePoint = pts.get(1);
+                            refPoint = tp.getReferencePoint(sling);
+                            dx = (int)releasePoint.getX() - refPoint.x;
+                            dy = (int)releasePoint.getY() - refPoint.y;
+                            shot = new Shot(refPoint.x, refPoint.y, dx, dy, 0, 0);
+                            if(!ABUtil.isReachable(vision, _tpt, shot)){
+                                reachability = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                //edited
 
                 Point releasePoint = null;
                 Shot shot = new Shot();
                 int dx,dy;
                 {
-                    // random pick up a pig
-                    ABObject pig = pigs.get(randomGenerator.nextInt(pigs.size()));
-                    List<ABObject> Blocks = vision.findBlocksRealShape();
-                    boolean round_stone = false;
-                    int round_index = 0;
-                    for(i = 0; i<Blocks.size();i++){
-                        if(Blocks.get(i).type == ABType.Stone && Blocks.get(i).shape == ABShape.Circle){
-                            round_stone = true;
-                            round_index = i;
-                        }
-                    }
+                    ABObject target_block = new ABObject();
                     Point _tpt = new Point();
-                    if(round_stone){
-                        _tpt = Blocks.get(round_index).getCenter();
+                    if(reachability){
+                        // random pick up a pig
+                        target_block = pigs.get(randomGenerator.nextInt(pigs.size()));
+                        _tpt = target_block.getLocation();
                     }
                     else{
-                        _tpt = pigs.get(pigs.size()-1).getCenter();// if the target is very close to before, randomly choose a
-                        // point near it
+                        //edited
+                        List<ABObject> blocks = vision.findBlocksMBR();
+                        List<ABObject> wide_blocks = new LinkedList<ABObject>();
+                        for(ABObject o :blocks){
+                            if((o.height/o.width)==0){
+                                wide_blocks.add(o);
+                            }
+                        }
+                        List<Integer> heuristic = gen_heuristic(wide_blocks, blocks);
+                        List<target> targets = new LinkedList<target>();
+                        if(!heuristic.isEmpty()){
+                            for(int i = 0; i < wide_blocks.size(); i++){
+                                target temp = new target();
+                                temp.o = wide_blocks.get(i);
+                                temp.h = heuristic.get(i);
+                                targets.add(temp);
+                            }
+
+                        }
+                        Collections.sort(targets, new Comparator<target>(){
+
+                            @Override
+                            public int compare(target t1, target t2) {
+
+                                return ((Integer)(t1.h)).compareTo((Integer)(t2.h));
+                            }
+                        });
+                        target_block = targets.get(0).o;
+                        _tpt = target_block.getLocation();
+                        //edited
                     }
-
-
-
-
+                    // if the target is very close to before, randomly choose a
+                    // point near it
                     if (prevTarget != null && distance(prevTarget, _tpt) < 10) {
                         double _angle = randomGenerator.nextDouble() * Math.PI * 2;
                         _tpt.x = _tpt.x + (int) (Math.cos(_angle) * 10);
@@ -309,6 +338,48 @@ public class NaiveAgent implements Runnable {
         return state;
     }
 
+    List<Integer> gen_heuristic(List<ABObject> wide_blocks, List<ABObject> blocks){
+        if(!wide_blocks.isEmpty() && !blocks.isEmpty()){
+            List<Integer> heuristic = new LinkedList<Integer>();
+            int h = 0;
+            for(ABObject o: wide_blocks ){
+                h -= o.width;
+                List<ABObject> supporters = ABUtil.getSupporters(o, blocks);
+                List<ABObject> supported = getSupported(o, blocks);
+                if(!supporters.isEmpty()){
+                    for(ABObject o1: supporters){
+                        h += o1.width;
+                    }
+                }
+                else{
+                    h = 9999;
+                }
+                if(!supported.isEmpty()){
+                    for(ABObject o1: supported){
+                        h -= o1.width;
+                    }
+                }
+                heuristic.add(h);
+                h = 0;
+            }
+            return heuristic;
+        }
+        return null;
+    }
+
+    List<ABObject> getSupported(ABObject o, List<ABObject> blocks){
+        if(!blocks.isEmpty()){
+            List<ABObject> supported = new LinkedList<ABObject>();
+            for(ABObject o2: blocks){
+                if(ABUtil.isSupport(o2, o)){
+                    supported.add(o2);
+                }
+            }
+            return supported;
+        }
+        return null;
+    }
+
     public static void main(String args[]) {
 
         NaiveAgent na = new NaiveAgent();
@@ -318,3 +389,9 @@ public class NaiveAgent implements Runnable {
 
     }
 }
+
+class target{
+    ABObject o;
+    int h;
+}
+
