@@ -459,7 +459,7 @@ public class NaiveAgent implements Runnable {
                         System.out.println();
                         ABObject temp = t;
                         System.out.println("Actual Location: " + t.getLocation());
-                        temp.setLocation((int) t.getX(), (int) t.getY() + t.height/2 + t.height/3);
+                        temp.setLocation((int) t.getX(), (int) t.getY() + t.height);
                         System.out.println("setted Location: " + temp.getLocation());
                         System.out.println("Height: " + t.height);
 
@@ -630,10 +630,12 @@ public class NaiveAgent implements Runnable {
 
                                 ABObject support = getFirstObstacle(t, vision, blocks, releasePoint);
 
-                                if(support.height / support.width > 2) {
+                                double distance = distance(t.getCenter(), support.getCenter());
+                                System.out.println("distance : " + distance);
+                                if(support.height / support.width > 2  && distance < 30) {
                                     System.out.println("support is selected");
 
-                                    _tpt = support.getCenter();
+                                    _tpt = support.getLocation();
 
                                     pts = tp.estimateLaunchPoint(sling, _tpt);
 
@@ -675,7 +677,8 @@ public class NaiveAgent implements Runnable {
                         System.out.println("Release Point so this is going to be new release point: " + releasePoint);
                         System.out.println("Release Angle and this is going to be new release angle: "
                                 + Math.toDegrees(releaseAngle));
-                        int tapInterval = 0;
+                        int tapInterval = 60;
+                        System.out.println(aRobot.getBirdTypeOnSling());
                         switch (aRobot.getBirdTypeOnSling())
                         {
 
@@ -688,7 +691,7 @@ public class NaiveAgent implements Runnable {
                             case BlackBird:
                                 tapInterval =  70 + randomGenerator.nextInt(20);break; // 70-90% of the way
                             case BlueBird:
-                                tapInterval = 75 + randomGenerator.nextInt(10);break;  // 65-80% of the way
+                                tapInterval = 65 + randomGenerator.nextInt(15);break;  // 65-80% of the way
                             default:
                                 tapInterval =  60;
                         }
@@ -698,6 +701,7 @@ public class NaiveAgent implements Runnable {
                         dx = (int)releasePoint.getX() - refPoint.x;
                         dy = (int)releasePoint.getY() - refPoint.y;
                         shot = new Shot(refPoint.x, refPoint.y, dx, dy, 0, tapTime);
+
 
                         //  System.out.println("reahcability of shot" + ABUtil.isReachable(vision, pig.getCenter(), shot));
                     }
